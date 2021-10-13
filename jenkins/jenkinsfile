@@ -1,0 +1,59 @@
+pipeline {
+    agent none
+    options {
+        skipStagesAfterUnstable()
+        skipDefaultCheckout()
+    }
+    environment {
+        IMAGE_BASE = 'volshara85/django'
+        IMAGE_TAG = "v$BUILD_NUMBER"
+        IMAGE_NAME = "${env.IMAGE_BASE}:${env.IMAGE_TAG}"
+        IMAGE_NAME_LATEST = "${env.IMAGE_BASE}:latest"
+        DOCKERFILE_NAME = "Dockerfile"
+    }
+
+    stages {
+        stage("prepare container") {
+            agent { 
+                docker {
+                    image 'python:3.8'
+                } 
+            }
+            environment {
+                       HOME = '.'
+                    }
+            stages {
+                stage("install") {
+                    checkout scm 
+                    steps {
+                        dir('src/') {
+                        sh 'pip install pip-tools -r ../requirements.txt -r ../dev-requirements.txt'
+                        sh 'mv app/.env.ci app/.env'
+                        }
+                    }
+                }
+                stage("test") {
+                      steps {
+                          dir('src/') {
+                          sh 'python -m pytest'
+                          }
+                      }
+                }
+            }
+        }
+        stage("Create Docker Image") {
+                    agent any
+                    steps {
+                      script {
+                           def dockerImage = docker.build("${env.IMAGE_NAME}", "-f ${env.DOCKERFILE_NAME} .")
+                           docker.withRegistry('', 'dockerhub-creds') {
+                           dockerImage.push()
+                           dockerImage.push("latest")
+                           }
+                           echo "Pushed Docker Image: ${env.IMAGE_NAME}"
+                        }
+                      sh "docker rmi ${env.IMAGE_NAME} ${env.IMAGE_NAME_LATEST}"
+                    }
+        }
+    }
+}
