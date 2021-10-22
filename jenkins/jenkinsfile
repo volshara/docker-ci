@@ -17,26 +17,20 @@ pipeline {
             agent { 
                 docker {
                     image 'python:3.8'
+                    args "-u 0:0
                 } 
             }
-            environment {
-                       HOME = '.'
-                    }
             stages {
                 stage("install") {
                     checkout scm 
                     steps {
-                        dir('src/') {
-                        sh 'pip install pip-tools -r ../requirements.txt -r ../dev-requirements.txt'
-                        sh 'mv app/.env.ci app/.env'
-                        }
+                        sh 'pip install pip-tools -r requirements.txt -r dev-requirements.txt'
+                        sh 'cp app/.env.ci app/.env'
                     }
                 }
                 stage("test") {
                       steps {
-                          dir('src/') {
-                          sh 'python -m pytest'
-                          }
+                          sh 'make test'
                       }
                 }
             }
